@@ -1,0 +1,40 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
+  # Runs the action end to end when the repository has a RADAR_API_KEY secret.
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - id: key
+        env:
+          RADAR_API_KEY: ${{ secrets.RADAR_API_KEY }}
+        run: echo "present=${RADAR_API_KEY:+true}" >> "$GITHUB_OUTPUT"
+      - if: steps.key.outputs.present == 'true'
+        id: radar
+        uses: ./
+        with:
+          api-key: ${{ secrets.RADAR_API_KEY }}
+          file: test/package-lock.json
+          upload-sarif: ${{ github.event_name != 'pull_request' }}
+      - if: steps.key.outputs.present == 'true'
+        run: test "${{ steps.radar.outputs.gate-tripped }}" = false
