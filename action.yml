@@ -7,8 +7,9 @@ branding:
 
 inputs:
   api-key:
-    description: Radar API key (store it as a secret).
-    required: true
+    description: Radar API key (store it as a secret). On fork and Dependabot pull requests, which get no secrets, an empty key skips the scan with a warning; anywhere else it is an error.
+    required: false
+    default: ''
   file:
     description: SBOM or lockfile to scan, e.g. package-lock.json, yarn.lock, poetry.lock, go.sum, bom.cdx.json.
     required: true
@@ -39,6 +40,9 @@ outputs:
   sarif-file:
     description: Path of the SARIF report, when upload-sarif is true.
     value: ${{ steps.scan.outputs.sarif-file }}
+  skipped:
+    description: '"true" when the scan was skipped for want of an API key.'
+    value: ${{ steps.scan.outputs.skipped }}
 
 runs:
   using: composite
@@ -51,8 +55,20 @@ runs:
         RADAR_FAIL_ON: ${{ inputs.fail-on }}
         RADAR_UPLOAD: ${{ inputs.upload-sarif }}
         RADAR_URL: ${{ inputs.api-url }}
+        RADAR_NO_SECRETS: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]') }}
       run: |
         set -euo pipefail
+        if [ -z "$RADAR_API_KEY" ]; then
+          # Fail closed: a missing secret anywhere else must not pass the gate.
+          [ "$RADAR_NO_SECRETS" = true ] || { echo "::error::api-key is empty. Set the RADAR_API_KEY secret."; exit 1; }
+          echo "::warning::No Radar API key (secrets are not passed to fork or Dependabot pull requests); skipping the scan."
+          echo "skipped=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        case "$RADAR_FAIL_ON" in
+          ''|critical|high|medium|low|kev|exploited) ;;
+          *) echo "::error::fail-on must be critical, high, medium, low, kev, exploited or empty, not '$RADAR_FAIL_ON'"; exit 1 ;;
+        esac
         [ -f "$RADAR_FILE" ] || { echo "::error::File not found: $RADAR_FILE"; exit 1; }
         body="$RUNNER_TEMP/radar-body.json"
         out="$RUNNER_TEMP/radar-scan.json"
@@ -80,7 +96,7 @@ runs:
           echo "sarif-file=$RUNNER_TEMP/radar.sarif" >> "$GITHUB_OUTPUT"
         fi
 
-    - if: inputs.upload-sarif == 'true'
+    - if: steps.scan.outputs.sarif-file != ''
       uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: ${{ steps.scan.outputs.sarif-file }}
