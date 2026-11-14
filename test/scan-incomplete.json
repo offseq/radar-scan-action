@@ -1,0 +1,9 @@
+{
+  "markdown": "## OffSeq Radar\n\nNo confirmed findings.\n",
+  "sarif": { "version": "2.1.0", "runs": [] },
+  "summary": { "truncated": 1 },
+  "data": {
+    "gate": { "tripped": false, "incomplete": true },
+    "truncated": [{ "purl": "pkg:npm/lodash@4.17.21", "reason": "candidate-cap" }]
+  }
+}
