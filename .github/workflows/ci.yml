@@ -81,3 +81,19 @@ jobs:
           test "${{ steps.radar.outputs.gate-tripped }}" = false
           test "${{ steps.radar.outputs.gate-incomplete }}" = true
           test "${{ steps.tolerant.outputs.gate-incomplete }}" = true
+
+  # An empty key outside fork and Dependabot pull requests must fail, never pass.
+  keyless:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: keyless
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ''
+          file: test/package-lock.json
+          upload-sarif: false
+      - run: |
+          test "${{ steps.keyless.outcome }}" = failure
+          test "${{ steps.keyless.outputs.skipped }}" = ""
