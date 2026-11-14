@@ -41,6 +41,7 @@ Get an API key in [Console → Settings](https://radar.offseq.com/console) and s
 | `api-key` | – | Radar API key. Required. |
 | `file` | – | SBOM or lockfile to scan. Required. |
 | `fail-on` | empty | `critical`, `high`, `medium`, `low`, `kev` or `exploited`. Only version-confirmed findings count. Empty never fails. |
+| `fail-on-incomplete` | `true` | Fail when the gate could not evaluate every package, e.g. over the server's candidate cap. The job summary lists the packages. |
 | `upload-sarif` | `true` | Upload SARIF to code scanning. Needs `security-events: write`. |
 | `api-url` | `https://radar.offseq.com` | Radar base URL. |
 
@@ -49,6 +50,7 @@ Get an API key in [Console → Settings](https://radar.offseq.com/console) and s
 | Output | |
 |---|---|
 | `gate-tripped` | `true` when `fail-on` matched. |
+| `gate-incomplete` | `true` when the gate could not evaluate every package. |
 | `sarif-file` | Path of the SARIF report. |
 
 ## Supported files

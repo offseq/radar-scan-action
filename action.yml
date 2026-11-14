@@ -16,6 +16,10 @@ inputs:
     description: Fail the job on a confirmed finding at this level - critical, high, medium, low, kev or exploited. Empty never fails.
     required: false
     default: ''
+  fail-on-incomplete:
+    description: Fail the job when the gate could not evaluate every package, so an incomplete scan never passes.
+    required: false
+    default: 'true'
   upload-sarif:
     description: Upload the SARIF report to GitHub code scanning (needs security-events write permission).
     required: false
@@ -29,6 +33,9 @@ outputs:
   gate-tripped:
     description: '"true" when fail-on matched a confirmed finding.'
     value: ${{ steps.scan.outputs.gate-tripped }}
+  gate-incomplete:
+    description: '"true" when the gate could not evaluate every package.'
+    value: ${{ steps.scan.outputs.gate-incomplete }}
   sarif-file:
     description: Path of the SARIF report, when upload-sarif is true.
     value: ${{ steps.scan.outputs.sarif-file }}
@@ -63,7 +70,10 @@ runs:
         fi
 
         jq -r '.markdown' "$out" >> "$GITHUB_STEP_SUMMARY"
+        jq -r '(.data.truncated // []) as $t | select($t | length > 0) |
+          "\n**Incomplete:** \($t | length) package(s) not fully evaluated: \($t | map("`\(.purl)` (\(.reason))") | join(", "))."' "$out" >> "$GITHUB_STEP_SUMMARY"
         echo "gate-tripped=$(jq -r '.data.gate.tripped == true' "$out")" >> "$GITHUB_OUTPUT"
+        echo "gate-incomplete=$(jq -r '.data.gate.incomplete == true' "$out")" >> "$GITHUB_OUTPUT"
 
         if [ "$RADAR_UPLOAD" = true ]; then
           jq '.sarif' "$out" > "$RUNNER_TEMP/radar.sarif"
@@ -82,4 +92,10 @@ runs:
         RADAR_FAIL_ON: ${{ inputs.fail-on }}
       run: |
         echo "::error::OffSeq Radar found a confirmed $RADAR_FAIL_ON finding. See the job summary."
+        exit 1
+
+    - if: steps.scan.outputs.gate-incomplete == 'true' && inputs.fail-on-incomplete == 'true'
+      shell: bash
+      run: |
+        echo "::error::OffSeq Radar could not evaluate every package, so the gate is incomplete. See the job summary."
         exit 1
